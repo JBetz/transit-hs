@@ -188,83 +188,77 @@ instance A.FromJSON Value where
       buildMap elems =
         M.fromList $ (\[a, b] -> (a, b)) <$> chunksOf 2 elems
 
+data WriteMode
+  = AsKey
+  | AsValue
+  deriving (Eq)
 
 instance ToJSON Value where
   toJSON transit =
-    run . evalState emptyWriteCache $ write transit
+    run . evalState emptyWriteCache $ writeValue transit
 
     where
-      write :: Value -> Eff (State WriteCache ': effs) A.Value
+      writeKey v = write (AsKey, v)
+      writeValue v = write (AsValue, v)
+
+      write :: (WriteMode, Value) -> Eff (State WriteCache ': effs) A.Value
       write = \case
-        Null ->
-          pure A.Null
-        String str ->
-          pure $ writeString str
-        Integer64 int ->
-          pure $ A.Number $ fromIntegral int
-        Integer int ->
-          pure $ A.Number $ fromIntegral int
-        Float float ->
-          pure $ A.Number $ fromFloatDigits float
-        Decimal scientific ->
-          pure $ A.Number scientific
-        Boolean bool ->
-          pure $ A.Bool bool
-        Bytes bytes ->
-          pure $ A.String $ T.decodeUtf8 (Base64.encode bytes)
-        Keyword keyword ->
-          writeCacheableTaggedValue ':' keyword
-        Symbol symbol ->
-          writeCacheableTaggedValue '$' symbol
-        PointInTime time ->
-          writeTaggedValue 'm' $ T.pack $ show $ round (1000 * utcTimeToPOSIXSeconds time)
-        UUID uuid ->
-          writeTaggedValue 'u' $ UUID.toText uuid
-        URI uri ->
-          writeTaggedValue 'r' $ T.pack $ show uri
-        Char char ->
-          writeTaggedValue 'c' $ T.singleton char
-        Array vals -> do
-          jsonVals <- traverse write vals
+        (AsKey, Null) -> writeTaggedValue False '_' ""
+        (AsValue, Null) -> pure A.Null
+
+        (_, String str) -> pure $ writeString str
+
+        (AsKey, Integer64 int) -> writeTaggedValue True 'i' $ T.pack $ show int
+        (AsValue, Integer64 int) -> pure $ A.Number $ fromIntegral int
+
+        (mode, Integer int) -> writeTaggedValue (mode == AsKey) 'n' $ T.pack $ show int
+
+        (AsKey, Float float) -> writeTaggedValue True 'd' $ T.pack $ show float
+        (AsValue, Float float) -> pure $ A.Number $ fromFloatDigits float
+
+        (AsKey, Decimal scientific) -> writeTaggedValue True 'f' $ T.pack $ show scientific
+        (AsValue, Decimal scientific) -> pure $ A.Number scientific
+
+        (AsKey, Boolean bool) -> writeTaggedValue True '?' $ if bool then "t" else "f"
+        (AsValue, Boolean bool) -> pure $ A.Bool bool
+
+        (AsKey, Bytes bytes) -> writeTaggedValue True 'b' $ T.decodeUtf8 bytes
+        (AsValue, Bytes bytes) -> pure $ A.String $ T.decodeUtf8 (Base64.encode bytes)
+
+        (_, Keyword keyword) -> writeTaggedValue True ':' keyword
+
+        (_, Symbol symbol) -> writeTaggedValue True '$' symbol
+
+        (mode, PointInTime time) -> writeTaggedValue (mode == AsKey) 'm' $ T.pack $ show $ round (1000 * utcTimeToPOSIXSeconds time)
+
+        (mode, UUID uuid) -> writeTaggedValue (mode == AsKey) 'u' $ UUID.toText uuid
+
+        (mode, URI uri) -> writeTaggedValue (mode == AsKey) 'r' $ T.pack $ show uri
+
+        (_, Char char) ->  writeTaggedValue False 'c' $ T.singleton char
+
+        (_, Array vals) -> do
+          jsonVals <- traverse writeValue vals
           pure $ A.Array jsonVals
-        List vals -> do
+
+        (_, List vals) -> do
           jsonTag <- cacheWrite "~#list"
-          jsonVals <- traverse write vals
+          jsonVals <- traverse writeValue vals
           pure $ A.Array $ V.fromList [ A.String jsonTag, A.Array $ V.fromList jsonVals ]
-        Set vals -> do
+
+        (_, Set vals) -> do
           jsonTag <- cacheWrite "~#set"
-          jsonVals <- traverse write (Set.toList vals)
+          jsonVals <- traverse writeValue (Set.toList vals)
           pure $ A.Array $ V.fromList [ A.String jsonTag, A.Array $ V.fromList jsonVals ]
-        Map map -> do
+
+        (_, Map map) -> do
           jsonVals <- traverse (\(k, v) -> do
             jsonK <- writeKey k
-            jsonV <- write v
+            jsonV <- writeValue v
             pure [jsonK, jsonV]) (M.assocs map)
           pure $ A.Array $ V.fromList $ "^ ":join jsonVals
-        TaggedValue tag val ->
-          writeTaggedValue tag val
 
-      writeKey :: Value -> Eff (State WriteCache ': effs) A.Value
-      writeKey key = case key of
-        Null -> writeTaggedValue '_' ""
-        String str -> A.String <$> cacheWrite str
-        Integer64 int -> writeCacheableTaggedValue 'i' $ T.pack $ show int
-        Integer int -> writeCacheableTaggedValue 'n' $ T.pack $ show int
-        Float float -> writeCacheableTaggedValue 'd' $ T.pack $ show float
-        Decimal scientific -> writeCacheableTaggedValue 'f' $ T.pack $ show scientific
-        Boolean bool -> writeCacheableTaggedValue '?' $ if bool then "t" else "f"
-        Bytes bytes -> writeCacheableTaggedValue 'b' $ T.decodeUtf8 bytes
-        Keyword _ -> write key
-        Symbol _ -> write key
-        PointInTime _ -> write key
-        UUID _ -> write key
-        URI uri -> writeCacheableTaggedValue 'r' $ T.pack $ show uri
-        Char _ -> write key
-        Array _ -> write key
-        List _ -> write key
-        Set _ -> write key
-        Map _ -> write key
-        TaggedValue _ _ -> write key
+        (mode, TaggedValue tag val) -> writeTaggedValue (mode == AsKey) tag val
 
       writeString :: Text -> A.Value
       writeString str = A.String $
@@ -274,10 +268,10 @@ instance ToJSON Value where
           '`':_ -> T.cons '~' str
           _ -> str
 
-      writeTaggedValue :: Char -> Text -> Eff (State WriteCache ': effs) A.Value
-      writeTaggedValue tag val =
-        pure $ A.String $ T.pack $ '~':tag:T.unpack val
-
-      writeCacheableTaggedValue :: Char -> Text -> Eff (State WriteCache ': effs) A.Value
-      writeCacheableTaggedValue tag val =
-        A.String <$> cacheWrite (T.pack $ '~':tag:T.unpack val)
+      writeTaggedValue :: Bool -> Char -> Text -> Eff (State WriteCache ': effs) A.Value
+      writeTaggedValue cacheable tag val =
+        let output = T.pack $ '~':tag:T.unpack val
+        in fmap A.String $
+          if cacheable
+            then cacheWrite output
+            else pure output
