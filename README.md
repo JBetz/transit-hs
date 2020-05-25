@@ -16,8 +16,8 @@ Implementation of the [transit](https://github.com/cognitect/transit-format) dat
 |bytes|yes|| |
 |keyword|yes|| |
 |symbol|yes|| |
-|arbitrary precision decimal|no|| |
-|arbitrary precision integer|no|| |
+|arbitrary precision decimal|yes|| |
+|arbitrary precision integer|yes|| |
 |point in time|yes|||
 |uuid|yes|||
 |uri|no|||

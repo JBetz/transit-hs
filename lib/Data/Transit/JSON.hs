@@ -80,7 +80,7 @@ instance A.FromJSON Value where
         A.Bool bool -> pure $ Right $ Boolean bool
         A.Number num -> pure $ Right $
           case toBoundedInteger num of
-            Just int -> Integer int
+            Just int -> Integer64 int
             Nothing -> Float (toRealFloat num)
         A.Object obj -> do
           assocs <- traverse (\(k, v) -> do
@@ -136,13 +136,15 @@ instance A.FromJSON Value where
           "t" -> pure $ Boolean True
           "f" -> pure $ Boolean False
           val -> valueMismatch "'t' or 'f'" (T.unpack val)
-        'i' -> parseText readText Integer "integer"
-        'd' -> parseText readText Float "float"
-        'b' -> parseTextEither (Base64.decode . T.encodeUtf8) Bytes "bytes"
+        'i' -> parseText readText Integer64 "Integer64"
+        'n' -> parseText readText Integer "Integer"
+        'd' -> parseText readText Float "Float"
+        'f' -> parseText readText Decimal "Decimal"
+        'b' -> parseTextEither (Base64.decode . T.encodeUtf8) Bytes "Bytes"
         ':' -> pure . Keyword
         '$' -> pure . Symbol
-        'm' -> parseText readText (PointInTime . posixSecondsToUTCTime . fromIntegral . (`div` 1000)) "POSIX seconds"
-        't' -> parseText (parseTimeM True defaultTimeLocale "" . T.unpack) PointInTime "timestamp"
+        'm' -> parseText readText (PointInTime . posixSecondsToUTCTime . fromIntegral . (`div` 1000)) "POSIXSeconds"
+        't' -> parseText (parseTimeM True defaultTimeLocale "" . T.unpack) PointInTime "Timestamp"
         'u' -> parseText UUID.fromText UUID "UUID"
         'c' -> pure . Char . T.head
         unknownChar -> pure . TaggedValue unknownChar
@@ -196,10 +198,14 @@ instance ToJSON Value where
           pure A.Null
         String str ->
           pure $ writeString str
+        Integer64 int ->
+          pure $ A.Number $ fromIntegral int
         Integer int ->
           pure $ A.Number $ fromIntegral int
         Float float ->
           pure $ A.Number $ fromFloatDigits float
+        Decimal scientific ->
+          pure $ A.Number scientific
         Boolean bool ->
           pure $ A.Bool bool
         Bytes bytes ->
@@ -238,11 +244,22 @@ instance ToJSON Value where
       writeKey key = case key of
         Null -> writeTaggedValue '_' ""
         String str -> A.String <$> cacheWrite str
-        Integer int -> writeCacheableTaggedValue 'i' $ T.pack $ show int
+        Integer64 int -> writeCacheableTaggedValue 'i' $ T.pack $ show int
+        Integer int -> writeCacheableTaggedValue 'n' $ T.pack $ show int
         Float float -> writeCacheableTaggedValue 'd' $ T.pack $ show float
+        Decimal scientific -> writeCacheableTaggedValue 'f' $ T.pack $ show scientific
         Boolean bool -> writeCacheableTaggedValue '?' $ if bool then "t" else "f"
         Bytes bytes -> writeCacheableTaggedValue 'b' $ T.decodeUtf8 bytes
-        _ -> write key
+        Keyword _ -> write key
+        Symbol _ -> write key
+        PointInTime _ -> write key
+        UUID _ -> write key
+        Char _ -> write key
+        Array _ -> write key
+        List _ -> write key
+        Set _ -> write key
+        Map _ -> write key
+        TaggedValue _ _ -> write key
 
       writeString :: Text -> A.Value
       writeString str = A.String $

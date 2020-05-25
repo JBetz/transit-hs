@@ -28,6 +28,7 @@ import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import qualified Data.Map as M
 import Data.Map (Map)
+import Data.Scientific (Scientific, fromFloatDigits)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Time
@@ -48,8 +49,10 @@ data Value
   = Null
   | String Text
   | Boolean Bool
-  | Integer Int64
+  | Integer64 Int64
+  | Integer Integer
   | Float Float
+  | Decimal Scientific
   | Bytes ByteString
   | Keyword Text
   | Symbol Text
@@ -68,8 +71,10 @@ instance Arbitrary Value where
     [ pure Null
     , String . T.pack <$> arbitrary
     , Boolean <$> arbitrary
+    , Integer64 <$> arbitrary
     , Integer <$> arbitrary
     , Float <$> arbitrary
+    , Decimal . fromFloatDigits @Float <$> arbitrary
     , Keyword . T.pack <$> arbitrary
     , Symbol . T.pack <$> arbitrary
     , PointInTime . posixSecondsToUTCTime . fromInteger <$> arbitrary
@@ -96,8 +101,10 @@ typeOf = \case
   Null -> "Null"
   String _ -> "String"
   Boolean _ -> "Boolean"
+  Integer64 _ -> "Integer64"
   Integer _ -> "Integer"
   Float _ -> "Float"
+  Decimal _ -> "Decimal"
   Bytes _ -> "Bytes"
   Keyword _ -> "Keyword"
   Symbol _ -> "Symbol"
@@ -192,11 +199,26 @@ instance FromTransit Int where
   fromTransit val = typeMismatch "Integer" val
 
 instance ToTransit Int64 where
-  toTransit = Integer
+  toTransit = Integer64
 
 instance FromTransit Int64 where
+  fromTransit (Integer64 x) = pure x
+  fromTransit val = typeMismatch "Integer64" val
+
+instance ToTransit Integer where
+  toTransit = Integer
+
+instance FromTransit Integer where
   fromTransit (Integer x) = pure x
   fromTransit val = typeMismatch "Integer" val
+
+instance FromTransit Float where
+  fromTransit (Float x) = pure x
+  fromTransit val = typeMismatch "Float" val
+
+instance FromTransit Scientific where
+  fromTransit (Decimal x) = pure x
+  fromTransit val = typeMismatch "Decimal" val
 
 instance ToTransit a => ToTransit [a] where
   toTransit list = List $ toTransit <$> list
