@@ -20,7 +20,7 @@ Implementation of the [transit](https://github.com/cognitect/transit-format) dat
 |arbitrary precision integer|yes|| |
 |point in time|yes|||
 |uuid|yes|||
-|uri|no|||
+|uri|yes|||
 |char|yes|||
 |quoted value|yes|||
 |special numbers|no|||

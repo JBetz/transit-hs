@@ -33,6 +33,7 @@ import Data.Transit
 import Data.Traversable (for)
 import qualified Data.UUID as UUID
 import qualified Data.Vector as V
+import qualified Network.URI as Network
 import Text.Read (readMaybe)
 
 toTransitJSON :: ToTransit a => a -> A.Value
@@ -146,6 +147,7 @@ instance A.FromJSON Value where
         'm' -> parseText readText (PointInTime . posixSecondsToUTCTime . fromIntegral . (`div` 1000)) "POSIXSeconds"
         't' -> parseText (parseTimeM True defaultTimeLocale "" . T.unpack) PointInTime "Timestamp"
         'u' -> parseText UUID.fromText UUID "UUID"
+        'r' -> parseText (Network.parseURI . T.unpack) URI "URI"
         'c' -> pure . Char . T.head
         unknownChar -> pure . TaggedValue unknownChar
 
@@ -218,6 +220,8 @@ instance ToJSON Value where
           writeTaggedValue 'm' $ T.pack $ show $ round (1000 * utcTimeToPOSIXSeconds time)
         UUID uuid ->
           writeTaggedValue 'u' $ UUID.toText uuid
+        URI uri ->
+          writeTaggedValue 'r' $ T.pack $ show uri
         Char char ->
           writeTaggedValue 'c' $ T.singleton char
         Array vals -> do
@@ -254,6 +258,7 @@ instance ToJSON Value where
         Symbol _ -> write key
         PointInTime _ -> write key
         UUID _ -> write key
+        URI uri -> writeCacheableTaggedValue 'r' $ T.pack $ show uri
         Char _ -> write key
         Array _ -> write key
         List _ -> write key

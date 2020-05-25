@@ -19,6 +19,7 @@ library
                      , deepseq
                      , freer-simple
                      , hashable
+                     , network-uri
                      , QuickCheck
                      , scientific
                      , split

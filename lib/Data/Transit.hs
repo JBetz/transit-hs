@@ -37,6 +37,7 @@ import Data.UUID
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import GHC.Generics
+import qualified Network.URI as Network
 import Test.QuickCheck (Arbitrary (..))
 import Test.QuickCheck.Gen (oneof, vectorOf)
 
@@ -58,6 +59,7 @@ data Value
   | Symbol Text
   | PointInTime UTCTime
   | UUID UUID
+  | URI Network.URI
   | Char Char
   | Array (Vector Value)
   | List [Value]
@@ -110,6 +112,7 @@ typeOf = \case
   Symbol _ -> "Symbol"
   PointInTime _ -> "PointInTime"
   UUID _ -> "UUID"
+  URI _ -> "URI"
   Char _ -> "Char"
   Array _ -> "Array"
   List _ -> "List"
@@ -220,6 +223,34 @@ instance FromTransit Scientific where
   fromTransit (Decimal x) = pure x
   fromTransit val = typeMismatch "Decimal" val
 
+instance ToTransit UTCTime where
+  toTransit = PointInTime
+
+instance FromTransit UTCTime where
+  fromTransit (PointInTime time) = pure time
+  fromTransit val = typeMismatch "PointInTime" val
+
+instance FromTransit UUID where
+  fromTransit (UUID x) = pure x
+  fromTransit val = typeMismatch "UUID" val
+
+instance ToTransit UUID where
+  toTransit = UUID
+
+instance FromTransit Network.URI where
+  fromTransit (URI x) = pure x
+  fromTransit val = typeMismatch "URI" val
+
+instance ToTransit Network.URI where
+  toTransit = URI
+
+instance (ToTransit a, ToTransit b) => ToTransit (a, b) where
+  toTransit (a, b) = Array $ V.fromList [toTransit a, toTransit b]
+
+instance (FromTransit a, FromTransit b) => FromTransit (a, b) where
+  fromTransit (Array arr) =  (,) <$> vecGet 0 arr <*> vecGet 1 arr
+  fromTransit val = typeMismatch "Array" val
+
 instance ToTransit a => ToTransit [a] where
   toTransit list = List $ toTransit <$> list
 
@@ -240,20 +271,6 @@ instance (Eq a, ToTransit a) => ToTransit (HashSet a) where
 instance (Eq a, Hashable a, FromTransit a) => FromTransit (HashSet a) where
   fromTransit (Set set) = HashSet.fromList <$> traverse fromTransit (Set.elems set)
   fromTransit val = typeMismatch "Set" val
-
-instance ToTransit UTCTime where
-  toTransit = PointInTime
-
-instance FromTransit UTCTime where
-  fromTransit (PointInTime time) = pure time
-  fromTransit val = typeMismatch "PointInTime" val
-
-instance (ToTransit a, ToTransit b) => ToTransit (a, b) where
-  toTransit (a, b) = Array $ V.fromList [toTransit a, toTransit b]
-
-instance (FromTransit a, FromTransit b) => FromTransit (a, b) where
-  fromTransit (Array arr) =  (,) <$> vecGet 0 arr <*> vecGet 1 arr
-  fromTransit val = typeMismatch "Array" val
 
 -- READER
 type ReadCache = (Int, Bimap Int (Either ArrayTag Value))
