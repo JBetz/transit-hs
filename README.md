@@ -75,10 +75,11 @@ variance introduced by outliers: 77% (severely inflated)
 
 ## Developing
 
-Run `nix-shell -c "ghcid -c 'cabal new-repl'"` in project root.
+Run `nix-shell --run "ghcid -c 'cabal repl'"` in project root.
 
 ## Todo
 - finish JSON implementation
+- add golden tests from spec
 - add and improve property tests
 - implement verbose JSON writer
 - add parser combinators
