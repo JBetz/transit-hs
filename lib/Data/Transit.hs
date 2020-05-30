@@ -195,10 +195,10 @@ instance FromTransit Bool where
   fromTransit val = typeMismatch "Boolean" val
 
 instance ToTransit Int where
-  toTransit = Integer . fromIntegral
+  toTransit = Integer64 . fromIntegral
 
 instance FromTransit Int where
-  fromTransit (Integer x) = pure $ fromIntegral x
+  fromTransit (Integer64 x) = pure $ fromIntegral x
   fromTransit val = typeMismatch "Integer" val
 
 instance ToTransit Int64 where
