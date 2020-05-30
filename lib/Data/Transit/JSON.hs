@@ -179,7 +179,7 @@ instance A.FromJSON Value where
           _ -> error "Invalid List"
         ArrayTag_Quote -> \case
           [String str] -> String str
-          _ -> error "Invalid Quoteh"
+          _ -> error "Invalid Quote"
         ArrayTag_Unknown tag ->
           error $ "Unknown tag: " <> tag
 
