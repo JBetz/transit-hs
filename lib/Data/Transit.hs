@@ -265,6 +265,16 @@ instance FromTransit a => FromTransit (Vector a) where
   fromTransit (Array list) = traverse fromTransit list
   fromTransit val = typeMismatch "Array" val
 
+instance (ToTransit k, ToTransit v) => ToTransit (Map k v) where
+  toTransit map = Map $ M.fromList $ (\(k, v) -> (toTransit k, toTransit v)) <$> M.toList map
+
+instance (Ord k, FromTransit k, FromTransit v) => FromTransit (Map k v) where
+  fromTransit (Map map) = do
+    keys <- traverse fromTransit (M.keys map)
+    values <- traverse fromTransit (M.elems map)
+    pure $ M.fromList $ Prelude.zip keys values
+  fromTransit val = typeMismatch "Map" val
+
 instance (Eq a, ToTransit a) => ToTransit (HashSet a) where
   toTransit hashSet = Set $ Set.fromList $ toTransit <$> HashSet.toList hashSet
 
