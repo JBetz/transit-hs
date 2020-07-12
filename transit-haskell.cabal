@@ -12,6 +12,7 @@ library
                      , Data.Transit.JSON
   build-depends:       base >=4.12 && <4.13
                      , aeson
+                     , array
                      , base64-bytestring
                      , bimap
                      , bytestring

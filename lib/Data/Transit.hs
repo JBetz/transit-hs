@@ -12,13 +12,16 @@
 
 module Data.Transit where
 
+import Control.Monad (join)
 import Control.Monad.Freer
 import Control.Monad.Freer.State
 import qualified Control.Monad.Freer.Error as E
 import Control.DeepSeq
+import Data.Array (Array)
+import qualified Data.Array as Array
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as Bimap
-import Data.ByteString
+import Data.ByteString (ByteString)
 import Data.Char (chr, ord)
 import Data.Int
 import Data.Text (Text)
@@ -285,6 +288,46 @@ instance (Eq a, ToTransit a) => ToTransit (HashSet a) where
 instance (Eq a, Hashable a, FromTransit a) => FromTransit (HashSet a) where
   fromTransit (Set set) = HashSet.fromList <$> traverse fromTransit (Set.elems set)
   fromTransit val = typeMismatch "Set" val
+
+instance FromTransit s => FromTransit (Array (Int, Int) s) where
+  fromTransit (Array rows) = do
+    elements <- traverse (withVec (traverse fromTransit)) rows
+    let bounds = ((1, 1), (length rows, length (V.head elements)))
+    pure $ Array.listArray bounds $ join (V.toList (V.toList <$> elements))
+  fromTransit (List rows) = do
+    elements <- traverse (withList (traverse fromTransit)) rows
+    let bounds = ((1, 1), (length rows, length (head elements)))
+    pure $ Array.listArray bounds $ join elements
+  fromTransit val = typeMismatch "Array" val
+
+instance ToTransit s => ToTransit (Array (Int, Int) s) where
+  toTransit array =
+    let ((startX, startY), (endX, endY)) = Array.bounds array
+    in Array $ V.fromList $ do
+      x <- [startX .. endX]
+      pure $ Array $ V.fromList $ do
+        y <- [startY .. endY]
+        pure $ toTransit (array Array.! (x, y))
+
+instance (ToTransit a, ToTransit b) => ToTransit (Either a b) where
+  toTransit either' = Array $ V.fromList $
+    case either' of
+      Left a -> [ Keyword "left", toTransit a ]
+      Right b -> [ Keyword "right", toTransit b ]
+
+instance (FromTransit a, FromTransit b) => FromTransit (Either a b) where
+  fromTransit (Array arr) = do
+    constructor <- vecGet 0 arr
+    case constructor of
+      Keyword "left" ->
+        Left <$> vecGet 1 arr
+      Keyword "right" ->
+        Right <$> vecGet 1 arr
+      Keyword val ->
+        valueMismatch "\"left\" or \"right\"" (T.unpack val)
+      val ->
+        typeMismatch "Keyword" val
+  fromTransit val = typeMismatch "Array" val
 
 -- READER
 type ReadCache = (Int, Bimap Int (Either ArrayTag Value))
