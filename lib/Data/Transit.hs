@@ -127,7 +127,7 @@ runParser = run . E.runError . evalState emptyReadCache
 
 typeMismatch :: String -> Value -> Parser a
 typeMismatch expected actual =
-  E.throwError $ "expected " ++ expected ++ ", but encountered " ++ typeOf actual
+  E.throwError $ "expected " ++ expected ++ ", but encountered " ++ typeOf actual ++ " while parsing: \n\t" ++ show actual
 
 valueMismatch :: String -> String -> Parser a
 valueMismatch expected actual =
