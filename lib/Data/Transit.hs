@@ -149,6 +149,10 @@ withVec :: (Vector Value -> Parser a) -> Value -> Parser a
 withVec parser (Array vector) = parser vector
 withVec _ val = typeMismatch "Array" val
 
+withList :: ([Value] -> Parser a) -> Value -> Parser a
+withList parser (List list) = parser list
+withList _ val = typeMismatch "List" val
+
 class FromTransit a where
   fromTransit :: Value -> Parser a
 
