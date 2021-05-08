@@ -36,10 +36,12 @@ import qualified Data.Vector as V
 import qualified Network.URI as Network
 import Text.Read (readMaybe)
 
-toTransitJSON :: ToTransit a => a -> A.Value
+type JSON = A.Value
+
+toTransitJSON :: ToTransit a => a -> JSON
 toTransitJSON = A.toJSON . toTransit
 
-fromTransitJSON :: FromTransit a => A.Value -> Result a
+fromTransitJSON :: FromTransit a => JSON -> Result a
 fromTransitJSON json =
   case A.fromJSON json of
     A.Success r ->
@@ -57,6 +59,8 @@ decodeTransitJSON bs =
     Just res -> fromTransitJSON res
     Nothing -> Error "Invalid JSON"
 
+
+
 instance A.FromJSON Value where
   parseJSON json =
     case runParser $ parse json of
@@ -66,7 +70,7 @@ instance A.FromJSON Value where
 
     where
 
-      parse :: A.Value -> Parser (Either ArrayTag Value)
+      parse :: JSON -> Parser (Either ArrayTag Value)
       parse = \case
         A.Array elems -> do
           parsedElems <- traverse parse elems
@@ -201,7 +205,7 @@ instance ToJSON Value where
       writeKey v = write (AsKey, v)
       writeValue v = write (AsValue, v)
 
-      write :: (WriteMode, Value) -> Eff (State WriteCache ': effs) A.Value
+      write :: (WriteMode, Value) -> Eff (State WriteCache ': effs) JSON
       write = \case
         (AsKey, Null) -> writeTaggedValue False '_' ""
         (AsValue, Null) -> pure A.Null
@@ -260,7 +264,7 @@ instance ToJSON Value where
 
         (mode, TaggedValue tag val) -> writeTaggedValue (mode == AsKey) tag val
 
-      writeString :: Text -> A.Value
+      writeString :: Text -> JSON
       writeString str = A.String $
         case T.unpack str of
           '~':_ -> T.cons '~' str
@@ -268,7 +272,7 @@ instance ToJSON Value where
           '`':_ -> T.cons '~' str
           _ -> str
 
-      writeTaggedValue :: Bool -> Char -> Text -> Eff (State WriteCache ': effs) A.Value
+      writeTaggedValue :: Bool -> Char -> Text -> Eff (State WriteCache ': effs) JSON
       writeTaggedValue cacheable tag val =
         let output = T.pack $ '~':tag:T.unpack val
         in fmap A.String $

@@ -71,6 +71,9 @@ data Value
   | TaggedValue Char Text
   deriving (Eq, Ord, Show, Generic, NFData)
 
+newtype VerboseValue = VerboseValue { unVerboseValue :: Value }
+  deriving (Eq, Ord, Show, Generic, NFData)
+
 instance Arbitrary Value where
   arbitrary = oneof
     [ pure Null
