@@ -10,7 +10,7 @@ extra-source-files:  CHANGELOG.md
 library
   exposed-modules:     Data.Transit
                      , Data.Transit.JSON
-  build-depends:       base >=4.12 && <4.13
+  build-depends:       base >=4.12
                      , aeson
                      , array
                      , base64-bytestring
