@@ -173,13 +173,15 @@ instance A.FromJSON Value where
           elems -> Map (buildMap elems)
         ArrayTag_Set -> \case
           [Array elems] -> Set $ Set.fromList $ V.toList elems
-          _ -> error "Invalid Set"
+          other -> error $ "Invalid Set: " <> show other
         ArrayTag_List -> \case
           [Array elems] -> List $ V.toList elems
-          _ -> error "Invalid List"
+          other -> error $ "Invalid List: " <> show other
         ArrayTag_Quote -> \case
-          [String str] -> String str
-          _ -> error "Invalid Quote"
+          -- TODO: For some reason, cljs-transit returns single values inside quoted expressions, hence why this isn't restricted
+          -- to strings. Why does it do this and what should the correct behavior be?
+          [singleton] -> singleton
+          other -> error $ "Invalid Quote: " <> show other
         ArrayTag_Unknown tag ->
           error $ "Unknown tag: " <> tag
 
