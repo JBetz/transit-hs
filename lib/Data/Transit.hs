@@ -142,6 +142,13 @@ mapGetKeyword keyword map =
     Just val -> fromTransit val
     Nothing -> valueMismatch ("Map with key = " <> T.unpack keyword) $ show map
 
+mapGetOptionalKeyword :: FromTransit v => Text -> Map Value Value -> Parser (Maybe v)
+mapGetOptionalKeyword keyword map =
+  case M.lookup (Keyword keyword) map of
+    Just Null -> pure Nothing
+    Just val -> Just <$> fromTransit val
+    Nothing -> pure Nothing
+
 vecGet :: FromTransit v => Int -> Vector Value -> Parser v
 vecGet index vector =
   case vector V.!? index of
@@ -255,7 +262,7 @@ instance (ToTransit a, ToTransit b) => ToTransit (a, b) where
   toTransit (a, b) = Array $ V.fromList [toTransit a, toTransit b]
 
 instance (FromTransit a, FromTransit b) => FromTransit (a, b) where
-  fromTransit (Array arr) =  (,) <$> vecGet 0 arr <*> vecGet 1 arr
+  fromTransit (Array arr) = (,) <$> vecGet 0 arr <*> vecGet 1 arr
   fromTransit val = typeMismatch "Array" val
 
 instance ToTransit a => ToTransit [a] where
