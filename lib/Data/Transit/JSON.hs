@@ -53,9 +53,9 @@ encodeTransitJSON = A.encode . toTransitJSON
 
 decodeTransitJSON :: FromTransit a => ByteString -> Result a
 decodeTransitJSON bs =
-  case A.decode bs of
-    Just res -> fromTransitJSON res
-    Nothing -> Error "Invalid JSON"
+  case A.eitherDecode bs of
+    Right res -> fromTransitJSON res
+    Left parseError -> Error $ "Invalid JSON: " <> show parseError
 
 instance A.FromJSON Value where
   parseJSON json =
