@@ -140,14 +140,10 @@ mapGetKeyword :: FromTransit v => Text -> Map Value Value -> Parser v
 mapGetKeyword keyword map =
   case M.lookup (Keyword keyword) map of
     Just val -> fromTransit val
-    Nothing -> valueMismatch ("Map with key = " <> T.unpack keyword) $ show map
-
-mapGetOptionalKeyword :: FromTransit v => Text -> Map Value Value -> Parser (Maybe v)
-mapGetOptionalKeyword keyword map =
-  case M.lookup (Keyword keyword) map of
-    Just Null -> pure Nothing
-    Just val -> Just <$> fromTransit val
-    Nothing -> pure Nothing
+    Nothing ->
+      case runParser (fromTransit Null) of
+        Right result -> pure result
+        Left _ -> valueMismatch ("Map with key = " <> T.unpack keyword) $ show map
 
 vecGet :: FromTransit v => Int -> Vector Value -> Parser v
 vecGet index vector =
