@@ -144,8 +144,8 @@ instance A.FromJSON Value where
         'b' -> parseTextEither (Base64.decode . T.encodeUtf8) Bytes "Bytes"
         ':' -> pure . Keyword
         '$' -> pure . Symbol
-        'm' -> parseText readText (PointInTime . posixSecondsToUTCTime . fromIntegral . (`div` 1000)) "POSIXSeconds"
-        't' -> parseText (parseTimeM True defaultTimeLocale "%FT%T%QZ" . T.unpack) PointInTime "Timestamp"
+        'm' -> parseText readText (PointInTime . posixSecondsToUTCTime . fromIntegral . (`div` 1000)) "PointInTime"
+        't' -> parseText (parseTimeM True defaultTimeLocale rfc3339FormatString . T.unpack) PointInTime "PointInTime"
         'u' -> parseText UUID.fromText UUID "UUID"
         'r' -> parseText (Network.parseURI . T.unpack) URI "URI"
         'c' -> pure . Char . T.head
@@ -231,7 +231,7 @@ instance ToJSON Value where
 
         (_, Symbol symbol) -> writeTaggedValue True '$' symbol
 
-        (mode, PointInTime time) -> writeTaggedValue (mode == AsKey) 'm' $ T.pack $ show $ round (1000 * utcTimeToPOSIXSeconds time)
+        (mode, PointInTime time) -> writeTaggedValue (mode == AsKey) 't' $ T.pack $ formatTime defaultTimeLocale rfc3339FormatString time 
 
         (mode, UUID uuid) -> writeTaggedValue (mode == AsKey) 'u' $ UUID.toText uuid
 
@@ -277,3 +277,6 @@ instance ToJSON Value where
           if cacheable
             then cacheWrite output
             else pure output
+
+rfc3339FormatString :: String
+rfc3339FormatString = "%FT%T%QZ"
