@@ -145,7 +145,7 @@ instance A.FromJSON Value where
         ':' -> pure . Keyword
         '$' -> pure . Symbol
         'm' -> parseText readText (PointInTime . posixSecondsToUTCTime . fromIntegral . (`div` 1000)) "POSIXSeconds"
-        't' -> parseText (parseTimeM True defaultTimeLocale "" . T.unpack) PointInTime "Timestamp"
+        't' -> parseText (parseTimeM True defaultTimeLocale "%FT%T%QZ" . T.unpack) PointInTime "Timestamp"
         'u' -> parseText UUID.fromText UUID "UUID"
         'r' -> parseText (Network.parseURI . T.unpack) URI "URI"
         'c' -> pure . Char . T.head
