@@ -15,6 +15,8 @@ import qualified Control.Monad.Freer.Error as E
 import Control.Monad.Freer.State
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Base64 as Base64
 import Data.Either (rights)
@@ -85,9 +87,9 @@ instance A.FromJSON Value where
             Nothing -> Float (toRealFloat num)
         A.Object obj -> do
           assocs <- traverse (\(k, v) -> do
-            parsedKey <- parse $ A.String k
+            parsedKey <- parse $ A.String (Key.toText k)
             parsedValue <- parse v
-            pure (parsedKey, parsedValue)) (HashMap.toList obj)
+            pure (parsedKey, parsedValue)) (KeyMap.toList obj)
           case assocs of
             [(Left arrayTag, Right (Array elems))] ->
               pure $ Right $ decodeArray arrayTag $ V.toList elems
