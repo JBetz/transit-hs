@@ -225,6 +225,9 @@ instance FromTransit Integer where
   fromTransit (Integer x) = pure x
   fromTransit val = typeMismatch "Integer" val
 
+instance ToTransit Float where
+  toTransit = Float
+
 instance FromTransit Float where
   fromTransit (Float x) = pure x
   fromTransit val = typeMismatch "Float" val
