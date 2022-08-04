@@ -10,12 +10,14 @@ extra-source-files:  CHANGELOG.md
 library
   exposed-modules:     Data.Transit
                      , Data.Transit.JSON
+                     , Data.Transit.TH
   build-depends:       base >=4.12
                      , aeson
                      , array
                      , base64-bytestring
                      , bimap
                      , bytestring
+                     , casing
                      , containers
                      , deepseq
                      , freer-simple
@@ -24,7 +26,10 @@ library
                      , QuickCheck
                      , scientific
                      , split
+                     , template-haskell
                      , text
+                     , th-abstraction
+                     , th-extras
                      , time
                      , unordered-containers
                      , uuid
