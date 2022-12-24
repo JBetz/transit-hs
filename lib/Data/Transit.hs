@@ -23,6 +23,7 @@ import Data.Bimap (Bimap)
 import qualified Data.Bimap as Bimap
 import Data.ByteString (ByteString)
 import Data.Char (chr, ord)
+import Data.Foldable (toList)
 import Data.Int
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -31,6 +32,8 @@ import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import qualified Data.Map as M
 import Data.Map (Map)
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 import Data.Scientific (Scientific, fromFloatDigits)
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -38,7 +41,7 @@ import Data.Time
 import Data.Time.Clock.POSIX
 import Data.UUID
 import Data.Vector (Vector)
-import qualified Data.Vector as V
+import qualified Data.Vector as Vector
 import GHC.Generics
 import qualified Network.URI as Network
 import Test.QuickCheck (Arbitrary (..))
@@ -83,7 +86,7 @@ instance Arbitrary Value where
     , Keyword . T.pack <$> arbitrary
     , Symbol . T.pack <$> arbitrary
     , PointInTime . posixSecondsToUTCTime . fromInteger <$> arbitrary
-    , Array . V.fromList <$> vectorOf 3 arbitrary
+    , Array . Vector.fromList <$> vectorOf 3 arbitrary
     , List <$> vectorOf 3 arbitrary
     , Set . Set.fromList <$> vectorOf 3 arbitrary
     , Map . M.fromList <$> vectorOf 3 arbitrary
@@ -147,7 +150,7 @@ mapGetKeyword keyword map =
 
 vecGet :: FromTransit v => Int -> Vector Value -> Parser v
 vecGet index vector =
-  case vector V.!? index of
+  case vector Vector.!? index of
     Just val -> fromTransit val
     Nothing -> valueMismatch ("Vector with index = " <> show index) $ show vector
 
@@ -258,7 +261,7 @@ instance ToTransit Network.URI where
   toTransit = URI
 
 instance (ToTransit a, ToTransit b) => ToTransit (a, b) where
-  toTransit (a, b) = Array $ V.fromList [toTransit a, toTransit b]
+  toTransit (a, b) = Array $ Vector.fromList [toTransit a, toTransit b]
 
 instance (FromTransit a, FromTransit b) => FromTransit (a, b) where
   fromTransit (Array arr) = (,) <$> vecGet 0 arr <*> vecGet 1 arr
@@ -276,6 +279,13 @@ instance ToTransit a => ToTransit (Vector a) where
 
 instance FromTransit a => FromTransit (Vector a) where
   fromTransit (Array list) = traverse fromTransit list
+  fromTransit val = typeMismatch "Array" val
+
+instance ToTransit a => ToTransit (Seq a) where
+  toTransit sequence = Array $ Vector.fromList $ toTransit <$> toList sequence
+
+instance FromTransit a => FromTransit (Seq a) where
+  fromTransit (Array list) = Seq.fromList . toList <$> traverse fromTransit list
   fromTransit val = typeMismatch "Array" val
 
 instance (ToTransit k, ToTransit v) => ToTransit (Map k v) where
@@ -298,8 +308,8 @@ instance (Eq a, Hashable a, FromTransit a) => FromTransit (HashSet a) where
 instance FromTransit s => FromTransit (Array (Int, Int) s) where
   fromTransit (Array rows) = do
     elements <- traverse (withVec (traverse fromTransit)) rows
-    let bounds = ((1, 1), (length rows, length (V.head elements)))
-    pure $ Array.listArray bounds $ join (V.toList (V.toList <$> elements))
+    let bounds = ((1, 1), (length rows, length (Vector.head elements)))
+    pure $ Array.listArray bounds $ join (Vector.toList (Vector.toList <$> elements))
   fromTransit (List rows) = do
     elements <- traverse (withList (traverse fromTransit)) rows
     let bounds = ((1, 1), (length rows, length (head elements)))
@@ -309,14 +319,14 @@ instance FromTransit s => FromTransit (Array (Int, Int) s) where
 instance ToTransit s => ToTransit (Array (Int, Int) s) where
   toTransit array =
     let ((startX, startY), (endX, endY)) = Array.bounds array
-    in Array $ V.fromList $ do
+    in Array $ Vector.fromList $ do
       x <- [startX .. endX]
-      pure $ Array $ V.fromList $ do
+      pure $ Array $ Vector.fromList $ do
         y <- [startY .. endY]
         pure $ toTransit (array Array.! (x, y))
 
 instance (ToTransit a, ToTransit b) => ToTransit (Either a b) where
-  toTransit either' = Array $ V.fromList $
+  toTransit either' = Array $ Vector.fromList $
     case either' of
       Left a -> [ Keyword "left", toTransit a ]
       Right b -> [ Keyword "right", toTransit b ]
