@@ -43,7 +43,7 @@ deriveNewtypeTransit typeName constructor =
 
     toTransitDefinition =
       FunD 'toTransit
-        [ Clause [ ConP (constructorName constructor) [VarP valueName] ]
+        [ Clause [ ConP (constructorName constructor) [] [VarP valueName] ]
             (NormalB $ AppE (VarE 'toTransit) (VarE valueName)) [] ]
 
     valueName = mkName "value"
@@ -63,10 +63,10 @@ deriveSumFromTransit typeName constructors =
       FunD 'fromTransit $ snoc (fmap (\constructor ->
         case constructorFields constructor of
           [] ->
-            Clause [ ConP 'Keyword [toTransitNameLiteral constructor] ]
+            Clause [ ConP 'Keyword [] [toTransitNameLiteral constructor] ]
               (NormalB $ AppE (VarE 'pure) (ConE $ constructorName constructor)) []
           fields ->
-            Clause [ ConP 'Array [ListP $ cons (ConP 'Keyword [toTransitNameLiteral constructor]) (VarP . makeFieldVariableName <$> fields) ] ]
+            Clause [ ConP 'Array [] [ListP $ cons (ConP 'Keyword [] [toTransitNameLiteral constructor]) (VarP . makeFieldVariableName <$> fields) ] ]
               (NormalB $ DoE Nothing $ snoc (bindExpressions fields) (returnExpression constructor fields)) []
         ) constructors) failurePattern
 
@@ -103,11 +103,11 @@ deriveSumToTransit typeName constructors =
     toTransitNameLiteral constructor = LitE $ StringL (toTransitName $ constructorName constructor)
 
     zeroFieldDefinition constructor =
-      Clause [ ConP (constructorName constructor) [] ]
+      Clause [ ConP (constructorName constructor) [] [] ]
         (NormalB $ AppE (ConE 'Keyword) (toTransitNameLiteral constructor)) []
 
     nonZeroFieldDefinition constructor fields =
-      Clause [ ConP (constructorName constructor) ((\(i, _) -> VarP $ mkName $ "field" <> show i) <$> zip [1 ..] fields) ]
+      Clause [ ConP (constructorName constructor) [] ((\(i, _) -> VarP $ mkName $ "field" <> show i) <$> zip [1 ..] fields) ]
         (NormalB $ AppE (ConE 'Array) (AppE (VarE 'Vector.fromList)
           (ListE $ cons
             (AppE (ConE 'Keyword) (toTransitNameLiteral constructor))
@@ -133,7 +133,7 @@ deriveProductFromTransit casing typeName constructorName fields =
     fromTransitDefinition =
       FunD 'fromTransit
         [ Clause [] (NormalB $ LamCaseE
-          [ Match (ConP 'Map [VarP mapName]) (NormalB matchMapBody) []
+          [ Match (ConP 'Map [] [VarP mapName]) (NormalB matchMapBody) []
           , Match (VarP (mkName "other")) (NormalB matchOtherBody) []
           ]
         ) []]
