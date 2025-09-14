@@ -20,8 +20,8 @@ library
                      , casing
                      , containers
                      , deepseq
-                     , freer-simple
                      , hashable
+                     , mtl
                      , network-uri
                      , QuickCheck
                      , scientific

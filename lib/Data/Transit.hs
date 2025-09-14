@@ -13,10 +13,9 @@
 module Data.Transit where
 
 import Control.Monad (join)
-import Control.Monad.Freer
-import Control.Monad.Freer.State
-import qualified Control.Monad.Freer.Error as E
 import Control.DeepSeq
+import Control.Monad.Except (Except, runExcept, throwError)
+import Control.Monad.State (StateT, gets, modify, evalStateT, runStateT)
 import Data.Array (Array)
 import qualified Data.Array as Array
 import Data.Bimap (Bimap)
@@ -126,18 +125,18 @@ typeOf = \case
   Map _ -> "Map"
   TaggedValue _ _ -> "TaggedValue"
 
-type Parser a = Eff '[State ReadCache, E.Error String] a
+type Parser a = StateT ReadCache (Except String) a
 
 runParser :: Parser a -> Either String a
-runParser = run . E.runError . evalState emptyReadCache
+runParser parser = runExcept $ evalStateT parser emptyReadCache
 
 typeMismatch :: String -> Value -> Parser a
 typeMismatch expected actual =
-  E.throwError $ "expected " ++ expected ++ ", but encountered " ++ typeOf actual ++ " while parsing: \n\t" ++ show actual
+  throwError $ "expected " ++ expected ++ ", but encountered " ++ typeOf actual ++ " while parsing: \n\t" ++ show actual
 
 valueMismatch :: String -> String -> Parser a
 valueMismatch expected actual =
-  E.throwError $ "expected " ++ expected ++ ", but encountered " ++ actual
+  throwError $ "expected " ++ expected ++ ", but encountered " ++ actual
 
 mapGetKeyword :: FromTransit v => Text -> Map Value Value -> Parser v
 mapGetKeyword keyword map =
@@ -362,7 +361,7 @@ lookupCode code = do
   cache <- gets @ReadCache snd
   case Bimap.lookup (codeToIndex code) cache of
     Just val -> pure val
-    Nothing -> E.throwError $ "Invalid cache code: " <> T.unpack code
+    Nothing -> throwError $ "Invalid cache code: " <> T.unpack code
 
 -- WRITER
 type WriteCache = (Int, Map Text Text)
@@ -370,7 +369,7 @@ type WriteCache = (Int, Map Text Text)
 emptyWriteCache :: WriteCache
 emptyWriteCache = (0, mempty)
 
-cacheWrite :: Text -> Eff (State WriteCache ': effs) Text
+cacheWrite :: Monad m => Text -> StateT WriteCache m Text
 cacheWrite str =
   if T.length str > 3
     then do
@@ -379,7 +378,7 @@ cacheWrite str =
         Just code ->
           pure code
         Nothing -> do
-          modify @WriteCache $ \(counter, cache) ->
+          modify $ \(counter, cache) ->
             if counter == maxCounter
               then emptyWriteCache
               else (counter + 1, M.insert str (indexToCode counter) cache)

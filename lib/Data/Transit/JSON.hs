@@ -10,9 +10,8 @@
 module Data.Transit.JSON where
 
 import Control.Monad (join, when)
-import Control.Monad.Freer
-import qualified Control.Monad.Freer.Error as E
-import Control.Monad.Freer.State
+import Control.Monad.Except (Except, runExcept, throwError)
+import Control.Monad.State (State, gets, modify, evalState, runState)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Key as Key
@@ -96,7 +95,7 @@ instance A.FromJSON Value where
             _ -> do
               assocsValues <- for assocs $ \case
                 (Right k, Right v) -> pure (k, v)
-                (k, v) -> E.throwError $ "Invalid map association: " <> show (k, v)
+                (k, v) -> throwError $ "Invalid map association: " <> show (k, v)
               pure $ Right $ Map $ M.fromList assocsValues
 
       parseString :: Text -> Parser (Either ArrayTag Value)
@@ -134,7 +133,7 @@ instance A.FromJSON Value where
       decodeString = \case
         '_' -> \case
           "" -> pure Null
-          val -> E.throwError $ T.unpack val
+          val -> throwError $ T.unpack val
         '?' -> \case
           "t" -> pure $ Boolean True
           "f" -> pure $ Boolean False
@@ -158,13 +157,13 @@ instance A.FromJSON Value where
           parseText parser constructor typeName txt =
             case parser txt of
               Just val -> pure $ constructor val
-              Nothing -> E.throwError $ "Invalid " <> typeName <> ": " <> T.unpack txt
+              Nothing -> throwError $ "Invalid " <> typeName <> ": " <> T.unpack txt
 
           parseTextEither :: (Text -> Either String a) -> (a -> Value) -> String -> Text -> Parser Value
           parseTextEither parser constructor typeName txt =
             case parser txt of
               Right val -> pure $ constructor val
-              Left err -> E.throwError $ "Invalid " <> typeName <> ": " <> err
+              Left err -> throwError $ "Invalid " <> typeName <> ": " <> err
 
           readText :: Read a => Text -> Maybe a
           readText = readMaybe . T.unpack
@@ -199,13 +198,13 @@ data WriteMode
 
 instance ToJSON Value where
   toJSON transit =
-    run . evalState emptyWriteCache $ writeValue transit
+    evalState (writeValue transit) emptyWriteCache
 
     where
       writeKey v = write (AsKey, v)
       writeValue v = write (AsValue, v)
 
-      write :: (WriteMode, Value) -> Eff (State WriteCache ': effs) A.Value
+      write :: (WriteMode, Value) -> State WriteCache A.Value
       write = \case
         (AsKey, Null) -> writeTaggedValue False '_' ""
         (AsValue, Null) -> pure A.Null
@@ -272,7 +271,7 @@ instance ToJSON Value where
           '`':_ -> T.cons '~' str
           _ -> str
 
-      writeTaggedValue :: Bool -> Char -> Text -> Eff (State WriteCache ': effs) A.Value
+      writeTaggedValue :: Bool -> Char -> Text -> State WriteCache A.Value
       writeTaggedValue cacheable tag val =
         let output = T.pack $ '~':tag:T.unpack val
         in fmap A.String $
